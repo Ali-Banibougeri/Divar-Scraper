@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# خروجی‌های اسکرپ — هیچ‌وقت کامیت نشوند
+*.jsonl
+ads.json
+data/
+divar_images/
+logs/
+.scrapy/
+httpcache/
+
+# اطلاعات حساس
+.env
+cookies.json
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
