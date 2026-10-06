@@ -94,6 +94,12 @@ class DivarSpider(scrapy.Spider):
                         (3.0, 6.0),
                     )
                 ),
+                no_scroll_wait=tuple(
+                    self.settings.get(
+                        "DIVAR_NO_SCROLL_WAIT",
+                        (3.0, 5.0),
+                    )
+                ),
                 initial_page_wait=tuple(
                     self.settings.get(
                         "DIVAR_INITIAL_PAGE_WAIT",
@@ -118,7 +124,13 @@ class DivarSpider(scrapy.Spider):
                         {},
                     )
                     ads = parse_search_response(response_data)
-                    tokens = [ad["token"] for ad in ads if ad.get("token")]
+                    tokens = list(
+                        dict.fromkeys(
+                            str(ad["token"])
+                            for ad in ads
+                            if ad.get("token")
+                        )
+                    )
 
                     if not tokens:
                         self.logger.info(
@@ -149,10 +161,42 @@ class DivarSpider(scrapy.Spider):
 
                     discovered_at = datetime.now().isoformat(timespec="seconds")
                     source_url = search_url
+                    new_tokens = {
+                        token
+                        for token in tokens
+                        if token not in effective_known
+                    }
 
+                    # Persist this capture immediately as one SQLite transaction.
+                    # The next scroll does not start until this commit succeeds.
+                    capture_ads = []
                     for ad in ads:
+                        capture_ad = dict(ad)
+                        capture_ad["source_url"] = source_url
+                        capture_ad["discovered_at"] = discovered_at
+                        capture_ad["crawl_status"] = (
+                            "new" if capture_ad.get("token") in new_tokens else "known"
+                        )
+                        capture_ads.append(capture_ad)
+
+                    self.db.save_search_capture(
+                        search_id=search_id,
+                        ads=capture_ads,
+                        new_tokens=new_tokens,
+                        capture_count=capture_count,
+                        new_count=new_count,
+                        stop_ratio=last_ratio,
+                    )
+                    self.logger.info(
+                        "SQLite commit complete: %s | capture=%s | new=%s",
+                        name,
+                        capture_count,
+                        new_count,
+                    )
+
+                    for ad in capture_ads:
                         token = str(ad["token"])
-                        is_known = token in effective_known
+                        is_known = token not in new_tokens
                         known_in_run.add(token)
 
                         yield AdsDashboardItem(

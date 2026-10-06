@@ -13,6 +13,11 @@ class DivarScrapyPipeline:
         self.db.close()
 
     def process_item(self, item, spider):
+        # Search-discovery items are already persisted in one transaction per
+        # capture by DivarSpider. Do not write them again one-by-one here.
+        if isinstance(item, AdsDashboardItem):
+            return item
+
         data = ItemAdapter(item).asdict()
         self.db.upsert_ad(data)
 

@@ -14,7 +14,7 @@ ADDONS = {}
 DIVAR_SEARCHES = [
     {
         "name": "auto_iran",
-        "url": "https://divar.ir/s/iran/auto?recent_ads=3h",
+        "url": "https://divar.ir/s/iran/auto",
     },
 ]
 
@@ -35,6 +35,8 @@ DIVAR_POLL_INTERVAL = 0.1
 
 DIVAR_RANDOM_WAIT_AFTER_SCROLL = (2.0, 5.0)
 DIVAR_RANDOM_WAIT_AFTER_CLICK = (3.0, 6.0)
+# اگر اسکرول هیچ تغییری ایجاد نکرد، قبل از بررسی پایان نتایج صبر کن.
+DIVAR_NO_SCROLL_WAIT = (3.0, 5.0)
 DIVAR_INITIAL_PAGE_WAIT = (4.0, 6.0)
 
 DIVAR_HEADLESS = True

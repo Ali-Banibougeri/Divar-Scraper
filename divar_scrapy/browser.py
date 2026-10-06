@@ -32,6 +32,7 @@ class BrowserSession:
         poll_interval: float = 0.1,
         random_wait_after_scroll: tuple[float, float] = (2.0, 5.0),
         random_wait_after_click: tuple[float, float] = (3.0, 6.0),
+        no_scroll_wait: tuple[float, float] = (3.0, 5.0),
         initial_page_wait: tuple[float, float] = (4.0, 6.0),
         headless: bool = True,
     ) -> None:
@@ -45,6 +46,7 @@ class BrowserSession:
         self.poll_interval = poll_interval
         self.random_wait_after_scroll = random_wait_after_scroll
         self.random_wait_after_click = random_wait_after_click
+        self.no_scroll_wait = no_scroll_wait
         self.initial_page_wait = initial_page_wait
         self.headless = headless
 
@@ -68,20 +70,35 @@ class BrowserSession:
 
             previous_request_ids: set[str] = set()
 
-            for _capture_number in range(1, self.max_captures + 1):
+            for capture_number in range(1, self.max_captures + 1):
                 captured: dict[str, Any] | None = None
 
-                for _attempt in range(
+                for attempt in range(
                     1,
                     self.max_scroll_attempts_per_capture + 1,
                 ):
                     self.clear_network_logs(driver)
-                    self.scroll_to_bottom(driver)
+                    scrolled = self.scroll_to_bottom(driver)
 
-                    self.random_wait(
-                        *self.random_wait_after_scroll,
-                        label="after scroll",
-                    )
+                    if not scrolled:
+                        self.random_wait(
+                            *self.no_scroll_wait,
+                            label="no-scroll/end check",
+                        )
+
+                        # If we cannot scroll any further and the explicit
+                        # "آگهی‌های بیشتر" button is not present, Divar has
+                        # reached the end of this search result set.
+                        if self.find_load_more_button(driver) is None:
+                            print(
+                                f"[+] Search end detected at capture {capture_number}."
+                            )
+                            return
+                    else:
+                        self.random_wait(
+                            *self.random_wait_after_scroll,
+                            label="after scroll",
+                        )
 
                     clicked = self.click_load_more_if_exists(driver)
                     if clicked:
@@ -98,6 +115,14 @@ class BrowserSession:
 
                     if captured is not None:
                         break
+
+                    # A load-more button can trigger delayed network activity.
+                    # If it disappears during the attempt, let the next pass
+                    # perform the same end-of-results check.
+                    print(
+                        f"[!] No NEW search response for capture {capture_number}, "
+                        f"attempt {attempt}."
+                    )
 
                 if captured is None:
                     continue
@@ -174,9 +199,13 @@ class BrowserSession:
             pass
 
     @staticmethod
-    def scroll_to_bottom(driver: webdriver.Chrome) -> None:
-        previous_height = driver.execute_script(
-            "return document.body.scrollHeight;"
+    def scroll_to_bottom(driver: webdriver.Chrome) -> bool:
+        """Scroll to the current bottom and report whether the page moved."""
+        previous_height = int(
+            driver.execute_script("return document.body.scrollHeight;")
+        )
+        previous_scroll_y = int(
+            driver.execute_script("return window.scrollY;")
         )
 
         driver.execute_script(
@@ -190,12 +219,18 @@ class BrowserSession:
         time.sleep(1.5)
 
         stable_counter = 0
+        moved = False
+
         while stable_counter < 2:
-            current_height = driver.execute_script(
-                "return document.body.scrollHeight;"
+            current_height = int(
+                driver.execute_script("return document.body.scrollHeight;")
+            )
+            current_scroll_y = int(
+                driver.execute_script("return window.scrollY;")
             )
 
             if current_height > previous_height:
+                moved = True
                 previous_height = current_height
                 driver.execute_script(
                     """
@@ -207,9 +242,15 @@ class BrowserSession:
                 )
                 time.sleep(1.5)
                 stable_counter = 0
-            else:
-                stable_counter += 1
-                time.sleep(0.5)
+                continue
+
+            if current_scroll_y != previous_scroll_y:
+                moved = True
+
+            stable_counter += 1
+            time.sleep(0.5)
+
+        return moved
 
     @staticmethod
     def find_load_more_button(driver: webdriver.Chrome):
