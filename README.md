@@ -135,7 +135,7 @@ divar-scraper/
 
 ```bash
 # کلون کردن مخزن
-git clone https://github.com/username/divar-scraper.git
+git clone https://github.com/Ali-Banibougeri/Divar-Scraper.git
 cd divar-scraper
 
 # ساخت محیط مجازی
@@ -252,7 +252,7 @@ scrapy crawl post_api -a tokens=tokens.txt -o output/posts.csv
 
 مشارکت‌ها خوش‌آمدند! 🎉
 
-برای گزارش باگ یا پیشنهاد قابلیت جدید، لطفاً [Issue](https://github.com/username/divar-scraper/issues) باز کنید یا Pull Request بفرستید.
+برای گزارش باگ یا پیشنهاد قابلیت جدید، لطفاً [Issue](https://github.com/Ali-Banibougeri/Divar-Scraper/issues) باز کنید یا Pull Request بفرستید.
 
 ---
 
