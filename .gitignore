@@ -3,7 +3,7 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
-
+chromedriver-win64/
 # خروجی‌های اسکرپ — هیچ‌وقت کامیت نشوند
 *.jsonl
 ads.json
