@@ -2,260 +2,223 @@
 
 # 🏙️ Divar Scraper
 
-**جمع‌آوری آگهی‌های دیوار — سلنیوم برای صفحهٔ سرچ + Scrapy برای API داخلی**
+**کشف آگهی‌های دیوار با Selenium و ذخیره‌سازی پایدار در SQLite**
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.11%2B-blue?logo=python&logoColor=white)
 ![Scrapy](https://img.shields.io/badge/Scrapy-2.x-green?logo=scrapy)
 ![Selenium](https://img.shields.io/badge/Selenium-4.x-orange?logo=selenium&logoColor=white)
-![Status](https://img.shields.io/badge/Status-در_حال_توسعه-yellow)
-![License](https://img.shields.io/badge/License-MIT-lightgrey)
+![Database](https://img.shields.io/badge/Database-SQLite-blue)
 
 </div>
 
 ---
 
-## 📖 معرفی
+## معرفی
 
-**Divar Scraper** یک ابزار ترکیبی برای جمع‌آوری آگهی‌های سایت [دیوار](https://divar.ir) است.
+این نسخه از پروژه با Selenium صفحهٔ جست‌وجوی دیوار را باز می‌کند، پاسخ‌های شبکهٔ مربوط به جست‌وجو را از طریق Chrome DevTools Protocol (CDP) دریافت می‌کند، توکن آگهی‌ها را استخراج می‌کند و اطلاعات کشف‌شده را در SQLite ذخیره می‌کند.
 
-صفحهٔ جستجوی دیوار به‌صورت داینامیک با جاوااسکریپت رندر می‌شود؛ بنابراین از **Selenium** برای باز کردن صفحهٔ سرچ، هندل کردن اسکرول و صفحه‌بندی و استخراج **توکن آگهی‌ها** استفاده می‌کنیم. سپس **Scrapy** با فراخوانی مستقیم **API داخلی دیوار**، جزئیات کامل هر آگهی را به‌صورت JSON و با سرعت بالا دریافت، پارس و ذخیره می‌کند.
+> **محدودهٔ فعلی:** مسیر اصلی فعلی کشف آگهی‌ها و ذخیرهٔ داده‌های موجود در نتایج جست‌وجو است. دریافت کامل متن صفحهٔ آگهی، جزئیات فروشنده و دانلود فایل تصاویر، هنوز به‌عنوان مرحلهٔ جداگانهٔ استخراج جزئیات پیاده‌سازی نشده است.
 
-### چرا ترکیب Selenium + Scrapy؟
+## معماری فعلی
 
-| ابزار | نقش | دلیل انتخاب |
-|---|---|---|
-| 🖥️ **Selenium** | صفحهٔ جستجو | رندر جاوااسکریپت، اسکرول بی‌نهایت، صفحه‌بندی، استخراج توکن‌ها |
-| 🕷️ **Scrapy** | جزئیات آگهی‌ها | فراخوانی مستقیم API داخلی، سرعت بالا، Concurrency و Pipeline |
+1. **Selenium / Chrome:** باز کردن صفحهٔ جست‌وجو و پیمایش نتایج.
+2. **CDP:** دریافت پاسخ‌های شبکهٔ جست‌وجو.
+3. **Parser:** استخراج اطلاعات موجود در ویجت‌های `POST_ROW` و حذف توکن‌های تکراری در هر پاسخ.
+4. **SQLite:** ذخیرهٔ دسته‌ای اطلاعات هر Capture و ارتباط آگهی با منبع جست‌وجو.
+5. **Scrapy Pipeline:** ذخیره‌سازی آیتم‌های سازگار با مدل داده در دیتابیس.
 
----
-
-## 📋 فهرست مطالب
-
-- [معماری پروژه](#-معماری-پروژه)
-- [جریان کار](#-جریان-کار)
-- [ساختار پروژه](#-ساختار-پروژه)
-- [نصب و راه‌اندازی](#️-نصب-و-راهاندازی)
-- [نحوهٔ استفاده](#-نحوهٔ-استفاده)
-- [نمونهٔ خروجی](#-نمونهٔ-خروجی)
-- [وضعیت توسعه](#-وضعیت-توسعه)
-- [رفع اشکال](#️-رفع-اشکال)
-- [سلب مسئولیت](#️-سلب-مسئولیت)
-
----
-
-## 🏗️ معماری پروژه
-
-```mermaid
-flowchart LR
-    subgraph SE["🖥️ مرحله ۱ — Selenium"]
-        A["باز کردن صفحهٔ سرچ دیوار"] --> B["اسکرول + صفحه‌بندی"]
-        B --> C["استخراج توکن آگهی‌ها"]
-    end
-
-    subgraph SC["🕷️ مرحله ۲ — Scrapy"]
-        D["صف توکن‌ها"] --> E["درخواست به API داخلی<br/>api.divar.ir"]
-        E --> F["پارس JSON و پاکسازی"]
-    end
-
-    C --> D
-    F --> G[("💾 خروجی<br/>JSON / CSV / DB")]
-```
-
----
-
-## 🔁 جریان کار
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant U as 👤 کاربر
-    participant SE as 🖥️ Selenium
-    participant W as 🌐 دیوار (وب)
-    participant SC as 🕷️ Scrapy
-    participant API as 🌐 API داخلی دیوار
-    participant O as 💾 خروجی
-
-    U->>SE: اجرا با کوئری جستجو
-    SE->>W: باز کردن صفحهٔ نتایج
-    W-->>SE: رندر آگهی‌ها
-    loop تا پایان صفحه‌بندی
-        SE->>W: اسکرول / صفحهٔ بعد
-        W-->>SE: آگهی‌های جدید
-        SE->>SE: استخراج توکن‌ها
-    end
-    SE->>SC: تحویل لیست توکن‌ها
-    loop برای هر توکن
-        SC->>API: GET جزئیات آگهی
-        API-->>SC: پاسخ JSON
-        SC->>O: ذخیرهٔ آیتم پارس‌شده
-    end
-    SC->>U: گزارش نهایی
-```
-
----
-
-## 📂 ساختار پروژه
+## ساختار مخزن
 
 ```text
-divar-scraper/
-├── main.py                  # نقطهٔ شروع: اجرای سلنیوم + تحویل توکن‌ها به اسکرپی
-├── config.yaml              # تنظیمات: شهر، دسته‌بندی، کوئری، تعداد صفحات
+Divar-Scraper/
+├── divar_scrapy/
+│   ├── browser.py           # Selenium و دریافت پاسخ‌های شبکه با CDP
+│   ├── database.py          # طرح SQLite و عملیات ذخیره‌سازی
+│   ├── items.py             # مدل آیتم‌های کشف و جزئیات
+│   ├── middlewares.py       # میان‌افزارهای Scrapy
+│   ├── parser.py             # تجزیهٔ پاسخ جست‌وجو
+│   ├── pipelines.py         # ذخیره‌سازی آیتم‌ها
+│   ├── settings.py          # تنظیمات اجرا
+│   └── spiders/
+│       └── divar.py         # اسپایدر اصلی
+├── tests/
+│   └── test_divar_search.py
+├── chromedriver-win64/      # باید محلی تهیه شود؛ در مخزن نگهداری نمی‌شود
 ├── requirements.txt
-│
-├── selenium_search/         # ماژول سلنیوم
-│   ├── search.py            # صفحهٔ سرچ، اسکرول، صفحه‌بندی
-│   ├── token_extractor.py   # استخراج توکن آگهی‌ها
-│   └── driver.py            # راه‌اندازی WebDriver
-│
-├── scrapy_project/          # پروژهٔ اسکرپی
-│   ├── scrapy.cfg
-│   └── divar/
-│       ├── items.py         # مدل آگهی
-│       ├── spiders/
-│       │   └── post_api.py  # اسپایدر API داخلی
-│       ├── pipelines.py     # پاکسازی، دیوآپلیکیت، ذخیره
-│       └── settings.py      # AutoThrottle، User-Agent و ...
-│
-└── output/                  # خروجی‌ها
-    ├── posts.json
-    └── posts.csv
+├── scrapy.cfg
+└── README.md
 ```
 
----
+## پیش‌نیازها
 
-## ⚙️ نصب و راه‌اندازی
+- Python 3.11 یا 3.12 پیشنهاد می‌شود.
+- Google Chrome نصب‌شده.
+- ChromeDriver سازگار با نسخهٔ نصب‌شدهٔ Chrome.
+- اتصال اینترنت برای دسترسی به دیوار.
 
-### پیش‌نیازها
+## نصب و اجرا در ویندوز
 
-- Python **3.10+**
-- Google Chrome
-- ChromeDriver (هماهنگ با نسخهٔ کروم)
+دستورات زیر را در **PowerShell** و از پوشه‌ای که می‌خواهی پروژه در آن قرار بگیرد اجرا کن.
 
-### مراحل نصب
+### ۱. دریافت پروژه
 
-```bash
-# کلون کردن مخزن
+```powershell
 git clone https://github.com/Ali-Banibougeri/Divar-Scraper.git
-cd divar-scraper
+cd Divar-Scraper
+```
 
-# ساخت محیط مجازی
-python -m venv venv
-source venv/bin/activate        # ویندوز: venv\Scripts\activate
+اگر پروژه از قبل روی سیستم وجود دارد، به پوشهٔ پروژه برو و آخرین تغییرات را دریافت کن:
 
-# نصب وابستگی‌ها
+```powershell
+git switch main
+git pull origin main
+```
+
+### ۲. ساخت محیط مجازی و نصب کتابخانه‌ها
+
+```powershell
+py -3.11 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### تنظیمات (`config.yaml`)
+اگر PowerShell اجازهٔ فعال‌سازی محیط مجازی نداد، می‌توانی بدون فعال‌سازی نیز دستورها را از طریق پایتون محیط مجازی اجرا کنی:
 
-```yaml
-search:
-  city: tehran
-  category: real-estate      # دسته‌بندی (مثلاً املاک)
-  query: "آپارتمان"           # عبارت جستجو
-  max_pages: 5               # تعداد صفحات برای سلنیوم
-
-scrapy:
-  concurrent_requests: 4
-  download_delay: 1.5        # ثانیه — مهم برای جلوگیری از بلاک شدن
-
-output:
-  format: json               # json | csv | both
-  file: output/posts.json
+```powershell
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
----
+### ۳. نصب و تنظیم ChromeDriver
 
-## 🚀 نحوهٔ استفاده
+ChromeDriver را از منبع رسمی و متناسب با نسخهٔ Chrome نصب‌شده تهیه کن. در تنظیمات پیش‌فرض، مسیر آن چنین است:
+
+```text
+chromedriver-win64/chromedriver.exe
+```
+
+بررسی کن که فایل در مسیر مورد انتظار موجود باشد:
+
+```powershell
+Test-Path .\chromedriver-win64\chromedriver.exe
+```
+
+اگر خروجی `False` بود، درایور را در این مسیر قرار بده یا مقدار `DIVAR_CHROMEDRIVER_PATH` را در `divar_scrapy/settings.py` به مسیر واقعی فایل تغییر بده. مسیر درایور نباید به مخزن Git اضافه شود.
+
+### ۴. بررسی شناسایی اسپایدر
+
+```powershell
+python -m scrapy list
+```
+
+خروجی باید شامل این نام باشد:
+
+```text
+divar
+```
+
+### ۵. اجرای جمع‌آوری
+
+```powershell
+python -m scrapy crawl divar -L INFO
+```
+
+در اجرا، گزارش‌های مراحل جست‌وجو، تعداد آگهی‌های کشف‌شده، نسبت تکراری‌ها و نتیجهٔ ذخیره‌سازی SQLite در ترمینال نمایش داده می‌شود.
+
+## اجرای پروژه در Linux / macOS
 
 ```bash
-# اجرای کامل (سلنیوم + اسکرپی)
-python main.py
-
-# فقط اسپایدر اسکرپی با لیست توکن‌های آماده
-scrapy crawl post_api -a tokens=tokens.txt -o output/posts.json
-
-# خروجی CSV
-scrapy crawl post_api -a tokens=tokens.txt -o output/posts.csv
+git clone https://github.com/Ali-Banibougeri/Divar-Scraper.git
+cd Divar-Scraper
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+python -m scrapy list
+python -m scrapy crawl divar -L INFO
 ```
 
----
+برای Linux/macOS باید ChromeDriver متناسب با سیستم‌عامل نصب و مقدار `DIVAR_CHROMEDRIVER_PATH` در `divar_scrapy/settings.py` به مسیر صحیح آن تنظیم شود. مسیر پیش‌فرض فعلی پروژه برای ویندوز است.
 
-## 📊 نمونهٔ خروجی
+## تنظیمات اصلی
 
-```json
-{
-  "token": "gVWbGMjX",
-  "title": "آپارتمان ۸۰ متری، سعادت‌آباد",
-  "price": 7450000000,
-  "city": "tehran",
-  "district": "سعادت‌آباد",
-  "publish_date": "۱۴۰۳/۰۵/۱۲",
-  "description": "پارکینگ، انباری، آسانسور ...",
-  "images": ["https://s100.divarcdn.com/..."],
-  "scraped_at": "2025-01-01T12:00:00"
-}
-```
+تنظیمات در `divar_scrapy/settings.py` قرار دارند.
 
----
-
-## 🚧 وضعیت توسعه
-
-> ⚠️ این پروژه در مرحلهٔ **توسعهٔ فعال** است و ممکن است ساختار آن تغییر کند.
-
-راهنما: ✅ انجام‌شده | 🚧 در حال توسعه | 📌 برنامهٔ آینده
-
-| قابلیت | وضعیت |
-|---|:---:|
-| جمع‌آوری توکن آگهی‌ها با Selenium | ✅ |
-| اسکرول خودکار و صفحه‌بندی | ✅ |
-| دریافت جزئیات از API داخلی با Scrapy | ✅ |
-| خروجی JSON و CSV | ✅ |
-| دیوآپلیکیت (حذف آگهی‌های تکراری) | ✅ |
-| Rate Limit و AutoThrottle هوشمند | 🚧 |
-| چرخش خودکار User-Agent | 🚧 |
-| CLI کامل با آرگومان‌های ورودی | 🚧 |
-| پشتیبانی از پروکسی | 📌 |
-| ذخیره در دیتابیس (PostgreSQL / MongoDB) | 📌 |
-| اجرای زمان‌بندی‌شده (Scheduler) | 📌 |
-| اعلان تلگرام برای آگهی‌های جدید | 📌 |
-| Docker | 📌 |
-
-### 🗺️ Roadmap
-
-- [x] استخراج توکن‌ها از صفحهٔ سرچ
-- [x] اسپایدر API داخلی
-- [x] Pipeline ذخیره‌سازی
-- [ ] چرخش User-Agent و مدیریت بلاک
-- [ ] پشتیبانی از دیتابیس
-- [ ] انتشار نسخهٔ پایدار `v1.0`
-
----
-
-## 🛠️ رفع اشکال
-
-| مشکل | راه‌حل |
+| تنظیم | کاربرد |
 |---|---|
-| خطای نسخهٔ ChromeDriver | نسخهٔ درایور را با نسخهٔ کروم هماهنگ کنید یا از `webdriver-manager` استفاده کنید |
-| دریافت 403 از API | User-Agent واقعی‌تر تنظیم کنید و `download_delay` را افزایش دهید |
-| صفحهٔ سرچ رندر نمی‌شود | حالت Headless را غیرفعال کنید یا زمان انتظار (wait) را بیشتر کنید |
+| `DIVAR_SEARCHES` | نام و آدرس صفحه‌های جست‌وجو |
+| `DIVAR_CHROMEDRIVER_PATH` | مسیر فایل اجرایی ChromeDriver |
+| `DIVAR_TARGET_URL` | نشانی endpoint شبکه‌ای که پاسخ جست‌وجو از آن دریافت می‌شود |
+| `DIVAR_TARGET_TYPE` | نوع درخواست شبکه برای فیلتر کردن Capture |
+| `DIVAR_MAX_CAPTURES` | حداکثر تعداد پاسخ‌های جست‌وجو برای هر منبع |
+| `DIVAR_MAX_SCROLL_ATTEMPTS_PER_CAPTURE` | تعداد تلاش برای دریافت پاسخ جدید |
+| `DIVAR_RESPONSE_TIMEOUT` | مهلت انتظار برای پاسخ شبکه |
+| `DIVAR_HEADLESS` | اجرای Chrome بدون پنجرهٔ قابل مشاهده |
+| `DIVAR_DUPLICATE_STOP_RATIO` | آستانهٔ نسبت توکن‌های تکراری برای توقف جست‌وجو |
+| `DIVAR_SQLITE_DB_PATH` | مسیر دیتابیس SQLite |
+| `CONCURRENT_REQUESTS_PER_DOMAIN` | سقف درخواست‌های هم‌زمان Scrapy |
+| `DOWNLOAD_DELAY` | تأخیر ثابت درخواست‌های Scrapy |
 
----
+توجه: تنظیمات هم‌زمانی Scrapy روی درخواست‌هایی اثر می‌گذارد که خود Scrapy ارسال می‌کند؛ مرحلهٔ Selenium و اسکرول مرورگر همچنان ترتیبی است.
 
-## ⚠️ سلب مسئولیت
+## دیتابیس و محل داده‌ها
 
-این پروژه صرفاً با هدف **آموزشی** ساخته شده است. جمع‌آوری داده با نرخ بالا ممکن است شرایط استفادهٔ دیوار را نقض کند. لطفاً با تأخیر منطقی بین درخواست‌ها و به‌صورت مسئولانه استفاده کنید. مسئولیت استفادهٔ نادرست بر عهدهٔ کاربر است.
+به‌صورت پیش‌فرض دیتابیس در مسیر زیر ساخته می‌شود:
 
----
+```text
+data/divar.db
+```
 
-## 🤝 مشارکت
+جدول‌های اصلی:
 
-مشارکت‌ها خوش‌آمدند! 🎉
+- `ads`: اطلاعات آگهی‌های کشف‌شده و فیلدهای در نظر گرفته‌شده برای جزئیات.
+- `search_sources`: منابع جست‌وجو و خلاصهٔ اجرای آن‌ها.
+- `search_ads`: ارتباط بین آگهی‌ها و منابعی که آن‌ها را پیدا کرده‌اند.
 
-برای گزارش باگ یا پیشنهاد قابلیت جدید، لطفاً [Issue](https://github.com/Ali-Banibougeri/Divar-Scraper/issues) باز کنید یا Pull Request بفرستید.
+SQLite با حالت WAL تنظیم شده است. اطلاعات هر Capture در یک تراکنش دسته‌ای ثبت می‌شوند تا ذخیره‌سازی قبل از ادامهٔ اسکرول انجام شود. فایل دیتابیس، فایل‌های WAL و داده‌های محلی عمداً نباید به Git اضافه شوند.
 
----
+برای مشاهدهٔ دیتابیس می‌توان از [DB Browser for SQLite](https://sqlitebrowser.org/) یا افزونهٔ SQLite در VS Code استفاده کرد.
 
-## 📄 لایسنس
+## تست
 
-این پروژه تحت لایسنس [MIT](LICENSE) منتشر شده است.
+تست‌های موجود در پوشهٔ `tests/` قرار دارند. برای اجرای آن‌ها:
+
+```powershell
+python -m pip install pytest
+python -m pytest -q
+```
+
+اجرای تست‌ها به‌تنهایی جای تست واقعی مرورگر و اتصال به دیوار را نمی‌گیرد؛ تست end-to-end را جداگانه و با نرخ درخواست مسئولانه انجام بده.
+
+## رفع اشکال
+
+| نشانه | بررسی پیشنهادی |
+|---|---|
+| `ChromeDriver not found` | مسیر `DIVAR_CHROMEDRIVER_PATH` و وجود فایل اجرایی را بررسی کن. |
+| خطای Session یا ناسازگاری مرورگر | نسخهٔ Chrome و ChromeDriver باید سازگار باشند. |
+| `No DIVAR_SEARCHES configured` | فهرست `DIVAR_SEARCHES` را در تنظیمات بررسی کن. |
+| پاسخ جست‌وجو دریافت نمی‌شود | آدرس هدف، نوع درخواست و اتصال مرورگر به اینترنت را بررسی کن؛ ممکن است ساختار شبکهٔ دیوار تغییر کرده باشد. |
+| دیتابیس ساخته نمی‌شود | دسترسی نوشتن به پوشهٔ پروژه و مقدار `DIVAR_SQLITE_DB_PATH` را بررسی کن. |
+| دستور Scrapy اسپایدر را پیدا نمی‌کند | از ریشهٔ مخزن اجرا کن و ابتدا `python -m scrapy list` را بررسی کن. |
+
+## وضعیت قابلیت‌ها
+
+| قابلیت | وضعیت فعلی |
+|---|---|
+| باز کردن جست‌وجو با Selenium | پیاده‌سازی شده |
+| دریافت پاسخ جست‌وجو از CDP | پیاده‌سازی شده |
+| استخراج توکن و داده‌های موجود در ردیف آگهی | پیاده‌سازی شده |
+| تشخیص توکن‌های تکراری | پیاده‌سازی شده |
+| ذخیرهٔ SQLite و ارتباط با منبع جست‌وجو | پیاده‌سازی شده |
+| استخراج کامل متن و جزئیات صفحهٔ هر آگهی | مرحلهٔ بعد |
+| دریافت و ذخیرهٔ فایل تصاویر آگهی | مرحلهٔ بعد |
+| تست خودکار end-to-end مرورگر | نیازمند اجرای مستقل |
+
+## استفادهٔ مسئولانه
+
+این پروژه برای یادگیری و پژوهش ساخته شده است. پیش از جمع‌آوری داده، شرایط استفاده و محدودیت‌های سرویس را بررسی کن؛ از ارسال درخواست‌های پرتعداد و دور زدن کنترل‌های دسترسی خودداری کن و اطلاعات را مطابق قوانین و حریم خصوصی کاربران مدیریت کن.
+
+## مشارکت و مجوز
+
+برای گزارش مشکل یا پیشنهاد تغییر، از [Issues](https://github.com/Ali-Banibougeri/Divar-Scraper/issues) و Pull Request استفاده کن. پروژه تحت مجوز [MIT](LICENSE) منتشر شده است.

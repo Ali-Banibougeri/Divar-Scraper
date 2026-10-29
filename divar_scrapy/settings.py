@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 
@@ -18,16 +19,25 @@ DIVAR_SEARCHES = [
     },
 ]
 
-# مسیر واقعی chromedriver.exe روی سیستم شما
-DIVAR_CHROMEDRIVER_PATH = r"chromedriver-win64\chromedriver.exe"
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+# Override this value with an absolute path if ChromeDriver is elsewhere.
+# Windows default: <project root>/chromedriver-win64/chromedriver.exe
+# Linux/macOS users should set this to their platform-specific executable.
+DIVAR_CHROMEDRIVER_PATH = Path(
+    os.environ.get(
+        "DIVAR_CHROMEDRIVER_PATH",
+        str(PROJECT_ROOT / "chromedriver-win64" / "chromedriver.exe"),
+    )
+).expanduser().resolve()
 
 DIVAR_TARGET_URL = "https://api.divar.ir/v8/postlist/w/search"
 DIVAR_TARGET_TYPE = "XHR"
 
-# حداکثر تعداد Search Response برای هر URL
+# Maximum number of search responses captured per configured search URL.
 DIVAR_MAX_CAPTURES = 100
 
-# حداکثر تلاش برای رسیدن به Response جدید در هر Capture
+# Maximum attempts to find a new response for each capture.
 DIVAR_MAX_SCROLL_ATTEMPTS_PER_CAPTURE = 10
 
 DIVAR_RESPONSE_TIMEOUT = 15
@@ -35,13 +45,12 @@ DIVAR_POLL_INTERVAL = 0.1
 
 DIVAR_RANDOM_WAIT_AFTER_SCROLL = (2.0, 5.0)
 DIVAR_RANDOM_WAIT_AFTER_CLICK = (3.0, 6.0)
-# اگر اسکرول هیچ تغییری ایجاد نکرد، قبل از بررسی پایان نتایج صبر کن.
 DIVAR_NO_SCROLL_WAIT = (3.0, 5.0)
 DIVAR_INITIAL_PAGE_WAIT = (4.0, 6.0)
 
 DIVAR_HEADLESS = True
 
-# وقتی درصد توکن‌های تکراری این مقدار یا بیشتر شود، همان Search متوقف می‌شود.
+# Stop a search when this fraction of tokens in a capture are duplicates.
 DIVAR_DUPLICATE_STOP_RATIO = 0.90
 
 
@@ -49,7 +58,6 @@ DIVAR_DUPLICATE_STOP_RATIO = 0.90
 # SQLITE
 # ============================================================
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DIVAR_SQLITE_DB_PATH = PROJECT_ROOT / "data" / "divar.db"
 
 
